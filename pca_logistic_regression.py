@@ -5,7 +5,11 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from PIL import Image
+
+# NOTE: Change the random seed for reproducibility
+random_seed = 17
 
 
 ### --- PCA --- PCA --- PCA --- PCA --- PCA --- PCA --- PCA --- PCA --- PCA --- PCA --- PCA
@@ -198,15 +202,319 @@ def pca():
 
 ### --- PCA END --- PCA END --- PCA END --- PCA END --- PCA END --- PCA END --- PCA END ---
 
+
 ### --- Logistic Regression --- Logistic Regression --- Logistic Regression --- Logistic Regression
+def logistic_regression():
+    def one_hot_encoding(label_data):
+        row_number = label_data.shape[0]
+        num_labels = 10  # MNIST dataset (0-9)
+        encoded_labels = np.zeros((row_number, num_labels), dtype="int")
+        encoded_labels[list(range(row_number)), label_data] = 1
+        return encoded_labels
+
+    def read_pixels(data_path):
+        with open(data_path, "rb") as f:
+            pixel_data = np.frombuffer(f.read(), "B", offset=16).astype("float32")
+        flattened_pixels = pixel_data.reshape(-1, 784)
+        normalized_pixels = flattened_pixels / 255
+        return normalized_pixels
+
+    def read_labels(data_path):
+        with open(data_path, "rb") as f:
+            label_data = np.frombuffer(f.read(), "B", offset=8)
+        one_hot_encoding_labels = one_hot_encoding(label_data)
+        return one_hot_encoding_labels
+
+    def read_dataset(path):
+        X_train = read_pixels(path + "/train-images-idx3-ubyte")
+        y_train = read_labels(path + "/train-labels-idx1-ubyte")
+        X_test = read_pixels(path + "/t10k-images-idx3-ubyte")
+        y_test = read_labels(path + "/t10k-labels-idx1-ubyte")
+        return X_train, y_train, X_test, y_test
+
+    def softmax(x):
+        exps = np.exp(x - np.max(x, axis=1, keepdims=True))
+        return exps / np.sum(exps, axis=1, keepdims=True)
+
+    def prepare_confusion_matrix(y_true, y_pred, number_of_classes):
+        confusion_matrix = np.zeros((number_of_classes, number_of_classes))
+        for true_label, predicted_label in zip(y_true, y_pred):
+            confusion_matrix[true_label][predicted_label] += 1
+
+        # Display the confusion matrix with pandas
+        print(pd.DataFrame(confusion_matrix))
+
+        # Plot the confusion matrix
+        plt.imshow(confusion_matrix, cmap=plt.cm.Blues, interpolation="nearest")
+        plt.title("Confusion Matrix")
+        plt.colorbar()
+        plt.xlabel("Predicted Label")
+        plt.ylabel("True Label")
+        plt.xticks(range(number_of_classes))
+        plt.yticks(range(number_of_classes))
+
+        # Add the values to the cells
+        for i in range(number_of_classes):
+            for j in range(number_of_classes):
+                plt.text(
+                    j,
+                    i,
+                    confusion_matrix[i, j],
+                    ha="center",
+                    va="center",
+                    color="black",
+                )
+
+        plt.show()
+
+        return confusion_matrix
+
+    # NOTE: Please change the path to the dataset folder
+    dataset_path = os.path.join(os.getcwd(), "mnist_dataset")
+    X_train, y_train, X_test, y_test = read_dataset(dataset_path)
+    # Now separate train as validation and train, 50000 for train and 10000 for validation
+    X_validation = X_train[50000:]
+    y_validation = y_train[50000:]
+    X_train = X_train[:50000]
+    y_train = y_train[:50000]
+
+    ## Logistic Regression Q1
+    print("Logistic Regression Q1")
+
+    # Define the initial parameters for the logistic regression
+    learning_rate = 5e-4
+    l2_regularization_coefficient = 1e-4
+    batch_size = 200
+    epochs = 100
+    number_of_classes = 10
+
+    def multinomial_logistic_regression_train(weights):
+        np.random.seed(random_seed)
+
+        # Accuracy and loss values for each epoch
+        validation_accuracy_values = []
+        # validation_accuracy_losses = []
+
+        for epoch in range(epochs):
+            # Shuffle the training data
+            """permutation = np.random.permutation(X_train.shape[0])
+            X_train = X_train[permutation]
+            y_train = y_train[permutation]"""
+
+            # Training the model with mini-batch gradient descent
+            for i in range(0, X_train.shape[0], batch_size):
+                X_batch = X_train[i : i + batch_size]
+                y_batch = y_train[i : i + batch_size]
+
+                # Calculate the softmax
+                y_predicted = softmax(np.dot(X_batch, weights))
+
+                """ # Calculate the loss
+                loss = -np.sum(y_batch * np.log(y_predicted)) / batch_size
+                # Add the L2 regularization term to the loss
+                loss += l2_regularization_coefficient * np.sum(weights**2) """
+
+                # Calculate the gradient
+                gradient = np.dot(X_batch.T, y_predicted - y_batch) / batch_size
+                # Add the L2 regularization term to the gradient
+                gradient += l2_regularization_coefficient * weights
+
+                # Update the weights
+                weights -= learning_rate * gradient
+
+            # Calculate the validation accuracy
+            y_validation_pred = softmax(np.dot(X_validation, weights))
+            validation_accuracy = np.mean(
+                np.argmax(y_validation, axis=1) == np.argmax(y_validation_pred, axis=1)
+            )
+            validation_accuracy_values.append(validation_accuracy)
+
+            print(f"Epoch: {epoch + 1}, Validation Accuracy: {validation_accuracy}")
+
+        return weights, validation_accuracy_values
+
+    def multinomial_logistic_regression_predict(weights, X):
+        return np.argmax(softmax(np.dot(X, weights)), axis=1)
+
+    weights, validation_accuracy_values = multinomial_logistic_regression_train(
+        np.random.normal(0, 1, (X_train.shape[1], number_of_classes))
+    )
+
+    # Calculate the test accuracy
+    y_test_pred = multinomial_logistic_regression_predict(weights, X_test)
+    y_test_true = np.argmax(y_test, axis=1)
+    test_accuracy = np.mean(y_test_true == y_test_pred)
+    print(f"Test Accuracy: {test_accuracy}")
+    # Display the confusion matrix with pandas
+    confusion_matrix_test = prepare_confusion_matrix(
+        y_test_true, y_test_pred, number_of_classes
+    )
+
+    ## Logistic Regression Q2
+    print("Logistic Regression Q2")
+
+    default_learning_rate = learning_rate
+    default_l2_regularization_coefficient = l2_regularization_coefficient
+    default_batch_size = batch_size
+    # default_initialization = "normal"
+
+    parameters_2_test = {
+        "batch_size": [1, 64, 3000],
+        "learning_rate": [1e-2, 1e-3, 1e-4, 1e-5],
+        "l2_regularization_coefficient": [1e-2, 1e-4, 1e-9],
+        "initialization": ["normal", "uniform", "zeros"],
+    }
+
+    best_parameters = {}
+    results_4_each_parameter = {}
+    for parameter_name, parameter_values in parameters_2_test.items():
+        best_accuracy = 0
+        epoch_validation_accuracies = []
+
+        for parameter_value in parameter_values:
+            # Reset the parameters to the default values
+            batch_size = default_batch_size
+            learning_rate = default_learning_rate
+            l2_regularization_coefficient = default_l2_regularization_coefficient
+            weights = np.random.normal(0, 1, (X_train.shape[1], number_of_classes))
+
+            # Update the parameter value
+            if parameter_name == "batch_size":
+                batch_size = parameter_value
+            elif parameter_name == "learning_rate":
+                learning_rate = parameter_value
+            elif parameter_name == "l2_regularization_coefficient":
+                l2_regularization_coefficient = parameter_value
+            elif parameter_name == "initialization":
+                # Default initialization is normal skip it
+                if parameter_value == "uniform":
+                    weights = np.random.uniform(
+                        0, 1, (X_train.shape[1], number_of_classes)
+                    )
+                elif parameter_value == "zeros":
+                    weights = np.zeros((X_train.shape[1], number_of_classes))
+
+            weights, validation_accuracy_values = multinomial_logistic_regression_train(
+                weights
+            )
+
+            # Update the best parameters if the accuracy is better
+            if validation_accuracy_values[-1] > best_accuracy:
+                best_accuracy = validation_accuracy_values[-1]
+                best_parameters[parameter_name] = parameter_value
+
+            epoch_validation_accuracies.append(validation_accuracy_values)
+
+        results_4_each_parameter[parameter_name] = (
+            parameter_values,
+            epoch_validation_accuracies,
+        )
+
+    # Print the best parameters
+    print("Best Parameters:")
+    for parameter_name, parameter_value in best_parameters.items():
+        print(f"{parameter_name}: {parameter_value}")
+
+    # Plot the validation accuracies for each parameter
+    fig, axs = plt.subplots(
+        2,
+        2,
+    )
+    for i, (parameter_name, parameter_accuracies) in enumerate(
+        results_4_each_parameter.items()
+    ):
+        parameter_values, epoch_validation_accuracies = parameter_accuracies
+        ax = axs.flat[i]
+        for j, validation_accuracies in enumerate(epoch_validation_accuracies):
+            ax.plot(validation_accuracies, label=f"{parameter_values[j]}")
+        ax.set_title(f"{parameter_name}")
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Validation Accuracy")
+        ax.legend()
+    plt.tight_layout()
+    plt.show()
+
+    ## Logistic Regression Q3
+    print("Logistic Regression Q3")
+
+    # Train the model with the best parameters
+    batch_size = best_parameters["batch_size"]
+    learning_rate = best_parameters["learning_rate"]
+    l2_regularization_coefficient = best_parameters["l2_regularization_coefficient"]
+    weights = np.random.normal(0, 1, (X_train.shape[1], number_of_classes))
+    if best_parameters["initialization"] == "uniform":
+        weights = np.random.uniform(0, 1, (X_train.shape[1], number_of_classes))
+    elif best_parameters["initialization"] == "zeros":
+        weights = np.zeros((X_train.shape[1], number_of_classes))
+
+    weights, validation_accuracy_values = multinomial_logistic_regression_train(weights)
+    # Calculate the test accuracy
+    y_test_pred = multinomial_logistic_regression_predict(weights, X_test)
+    y_test_true = np.argmax(y_test, axis=1)
+    test_accuracy = np.mean(y_test_true == y_test_pred)
+    print(f"Test Accuracy: {test_accuracy}")
+    # Display the confusion matrix with pandas
+    confusion_matrix_test = prepare_confusion_matrix(
+        y_test_true, y_test_pred, number_of_classes
+    )
+
+    ## Logistic Regression Q4
+    print("Logistic Regression Q4")
+
+    # Display the weights as images
+    for i in range(number_of_classes):
+        image_weight = weights[:, i].reshape(28, 28)
+        plt.matshow(
+            image_weight,
+            cmap=plt.cm.gray,
+            vmin=0.5 * image_weight.min(),
+            vmax=0.5 * image_weight.max(),
+        )
+        plt.title(f"Weight for Class {i}")
+        plt.colorbar()
+        plt.show()
+
+    ## Logistic Regression Q5
+    print("Logistic Regression Q5")
+
+    # Display the metrics for the best model
+    # Calculate the precision, recall, F1 score, and F2 score for each class
+    precision = np.zeros(number_of_classes)
+    recall = np.zeros(number_of_classes)
+    f1 = np.zeros(number_of_classes)
+    f2 = np.zeros(number_of_classes)
+
+    for i in range(number_of_classes):
+        true_positive = confusion_matrix_test[i, i]
+        false_positive = np.sum(confusion_matrix_test[:, i]) - true_positive
+        false_negative = np.sum(confusion_matrix_test[i, :]) - true_positive
+
+        precision[i] = true_positive / (true_positive + false_positive)
+        recall[i] = true_positive / (true_positive + false_negative)
+        f1[i] = 2 * precision[i] * recall[i] / (precision[i] + recall[i])
+        f2[i] = 5 * precision[i] * recall[i] / (4 * precision[i] + recall[i])
+
+    # Display the metrics
+    metrics = pd.DataFrame(
+        {
+            "Precision": precision,
+            "Recall": recall,
+            "F1 Score": f1,
+            "F2 Score": f2,
+        }
+    )
+    print("Metrics for the Best Model:")
+    print(metrics)
+
 
 ### --- Logistic Regression END --- Logistic Regression END --- Logistic Regression END ---
 
 ### To run PCA press 1 and to run Logistic Regression press 2
-is_pca = 1  # int(input("Enter 1 for PCA, 2 for Logistic Regression: "))
+is_pca = int(input("Enter 1 for PCA, 2 for Logistic Regression: "))
 
 if is_pca == 1:
     print("Running PCA...")
     pca()
 else:
     print("Running Logistic Regression...")
+    logistic_regression()
