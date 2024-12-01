@@ -9,7 +9,7 @@ import pandas as pd
 from PIL import Image
 
 # NOTE: Change the random seed for reproducibility
-random_seed = 17
+random_seed = 14
 
 
 ### --- PCA --- PCA --- PCA --- PCA --- PCA --- PCA --- PCA --- PCA --- PCA --- PCA --- PCA
