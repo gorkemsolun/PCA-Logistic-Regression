@@ -1,4 +1,4 @@
-Görkem Kadir Solun 22003214
+Görkem Kadir Solun
 
 1. Open the designated directory in your Python interpreter.
 2. Install the required libraries/packages using pip:
